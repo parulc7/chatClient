@@ -2,6 +2,8 @@
 const express = require('express');
 // Importing Body Parser Module
 const bodyParser = require('body-parser');
+// Importing Mongoose for interacting with MongoDB
+const mongoose = require('mongoose');
 // Creating an Express Instance
 var app = express();
 
@@ -15,27 +17,40 @@ app.use(express.static(__dirname));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended:false}));
 
-// Create a message array to emulate for frontend (This has to be served by the database in next step)
-var messages = [
-    {name:"Parul", text:"How're you doing?"},
-    {name:"Aman", text:"I'm fine. Thank You!"}
-]
+// MongoDB user credentials (must be hidden in configuration files for production builds)
+var db = "mongodb+srv://user:abc123xyz@cluster0-xywnu.mongodb.net/test?retryWrites=true&w=majority";
+
+// Message Model
+var MessageModel = mongoose.model('MessageModel', {
+    name:String,
+    text:String,
+});
 
 // Routing for /messages route - if we receive a GET request, send the messages (API for message to use in frontend)
 app.get('/messages', (req, res)=>{
-    res.send(messages);
+    MessageModel.find({}, (err, messages)=>{
+        res.send(messages);
+    })
 })
 // // Routing for /messages route - if we receive a POST request, get the data in the messages form (API for message to use in frontend)
 app.post('/messages', (req, res)=>{
-    messages.push(req.body);
-    res.sendStatus(200);
-    io.emit('new_message', req.body)
+    var message = MessageModel(req.body);
+    message.save((err)=>{
+        if(err)
+            res.sendStatus(500);
+        res.sendStatus(200);
+        io.emit('new_message', req.body)
+    });
 })
 // using event hook on socket instance in server.js
 io.on('connection', (socket)=>{
 	console.log('A user was just connected');
 });
+// Create a connection to MongoDB 
+mongoose.connect(db, {useMongoClient:true, useNewUrlParser:true, useUnifiedTopology:true}, (err)=>{
+    console.log("MongoDB Connection Established!!\n", err);
+});
 // Create a server event on port 3000
 var server = http.listen(3000, ()=>{
-    console.log("Server is running on 127.0.0.1:", server.address().port);
+    console.log(`Server is running on http://127.0.0.1:${server.address().port}`);
 });
